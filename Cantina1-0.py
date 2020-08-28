@@ -303,10 +303,11 @@ while True:
         updateGraphTable(current_layout,x_plot, y_plot, time_names)
     
     if 'GF' in event:
+        y_plot = 'Bar_accumolo'
         if 'RADIO' in event:
-            time_names=[]
             if 'BAR_X' in event:
                 x_plot = 'Bar_accumolo'
+                time_names=[]
             if 'TIME_X' in event:
                 x_plot = 'time'
                 time_names=['Data','Ora_misura']
