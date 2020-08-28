@@ -22,6 +22,9 @@ ax.grid()
 COL_S=10
 HEIGHT=1000
 WIDTH=1300
+
+days_month = [31,28,31,30,31,30,31,31,30,31,30,31]
+
 # Function #
 def Hour():
     return datetime.datetime.now().strftime("%H:%M")
@@ -34,6 +37,15 @@ def fSp(stringa, n):
     l1=(n-l)//2
     l2=n-l-l1
     return ' '*(l1)+stringa+' '*(l2)
+
+def dateToSec(date):
+    date_v = date.split('/')
+    return (int(date_v[0])+ days_month[int(date_v[1])])*86400 
+
+def hourToSec(hour):
+    hour_v = hour.split(':')
+    return int(hour_v[0])*3600 + int(hour_v[1])*60
+
 
 def csvData(filename):
         if os.path.isfile(filename+'.csv'):
@@ -93,7 +105,29 @@ def maturazioneSaveAndUpdateTable(values, ID, vigneto, dati):
             fp.close()
             uploadTable(ID)
 
-def maturazioneDeleteLine(filename, table_line):
+def SaveAndUpdateTable(values, ID, value_begin,  dati):
+            ###  Writing data in csv file
+            filename = ID+'.csv'
+            line = ''
+            line_v=[]
+            # creo la linea da aggiungere
+            for val in [value_begin+'_'+d.replace(' ','_') for d in dati]:
+                    line_v.append(str(values[val]))
+            line = ';'.join(line_v)+'\n' 
+
+            # Nel caso in cui il file non esista lo creo ed aggiungo l'intestazione
+            if not os.path.isfile(filename):
+                title = ';'.join([name.replace(' ','_') for name in dati])+'\n'
+                with open(filename,'w') as fp:
+                    fp.write(title)
+                    fp.write(line)
+            else:
+                with open(filename,'a') as fp:
+                    fp.write(line)
+            fp.close()
+            uploadTable(ID)
+
+def DeleteLine(filename, table_line):
     if len(table_line) != 0:
         with open(filename+'.csv', "r") as f:
             lines = f.readlines()
@@ -106,35 +140,41 @@ def maturazioneDeleteLine(filename, table_line):
 
 
 def uploadTable(ID):
-            [data, header_list]  = csvData(ID)
-            window.Element('table_'+ID).Update(
-                    values= data, num_rows=min(len(data),20))
-def updateGraphTable(ID,x_name, y_name):
-            [data, header_list]  = csvData(ID)
-            if not x_name in header_list or not y_name in header_list:
-                return
-            x_i = header_list.index(x_name)
-            y_i = header_list.index(y_name)
-            x=[]
-            y=[]
-            for line in data:
-                x.append( line[x_i])
-                y.append(float(line[y_i]))
+        [data, header_list]  = csvData(ID)
+        window.Element('table_'+ID).Update(
+                values= data, num_rows=min(len(data),20))
 
-            updateGraph(x, y)
-            window.Element('table_'+ID).Update(
-                    values= data, num_rows=min(len(data),20))
+def updateGraphTable(ID,x_name ,y_name, time_names=[]):
+        [data, header_list]  = csvData(ID)
+        if x_name == 'time':
+            x_i = header_list.index(time_names[0])
+            x2_i = header_list.index(time_names[1])
+        else:
+            x_i = header_list.index(x_name)
+        y_i = header_list.index(y_name)
+        x=[]
+        y=[]
+        for line in data:
+            if x_name == 'time':
+                x.append( float(dateToSec(line[x_i])+ hourToSec(line[x2_i])))
+            else:
+                x.append( float(line[x_i]))    
+            y.append(float(line[y_i]))
+
+        updateGraph(x, y)
+        window.Element('table_'+ID).Update(
+                values= data, num_rows=min(len(data),20))
 
             
 
 def updateGraph(x, y):
         ax.cla()                    # clear the subplot
         ax.grid()                   # draw the grid
-        years = mdates.YearLocator()   # every year
-        months = mdates.MonthLocator()  # every month
-        days = mdates.DayLocator()  # every month
-        fmt = mdates.DateFormatter('%D/%M/%Y')
-        ax.plot_date(x, y,  color='purple', fmt='--')
+        #years = mdates.YearLocator()   # every year
+        #months = mdates.MonthLocator()  # every month
+        #days = mdates.DayLocator()  # every month
+        #fmt = mdates.DateFormatter('%D/%M/%Y')
+        ax.plot(x, y,  color='purple')
         #ax.xaxis.set_major_locator(days)
         #ax.xaxis.set_major_formatter(fmt)
         #ax.xaxis.set_tick_params(rotation=30, labelsize=10)
@@ -160,10 +200,14 @@ maturazione_dati_default = [Data(), Hour(), '0', '0', '0', '0']
 
 raccolta_vini = [ v+'::raccolta_'+v for v in vini]
 raccolta_dati = [ 'Data', 'Ora inizio raccolta', 'Ora fine raccolta','Ora fine sgranatura', 'T Uva', 'T Mosto','Kg Uva', 'Hl mosto' , 'Babo']
+
 fermentazioni_vini = [ v+'::fermentazioni_'+v for v in vini]
 fermentazioni_dati_babo = ['Data', 'Ora', 'Babo', 'Temperatura']
 fermentazioni_dati_rimontaggi = ['Data', 'Ora', 'Rimontaggi ore On', 'Rimontaggi ore Off', 'Posizione pompa']
 fermentazioni_dati_vasca = ['Data', 'Ora', 'Vasca']
+
+gf_perdite_dati = ['Data', 'Ora misura', 'T accumolo', 'Bar accumolo']
+gf_perdite_dati_default = [Data(), Hour(), '0','0']
 
 menu_def = [['Vendemmia', 
                 ['Maturazione',
@@ -174,6 +218,11 @@ menu_def = [['Vendemmia',
                     fermentazioni_vini,
                 ]
             ],
+            ['Gruppo frigo',
+                ['Perdite circuito::GF_perdite',
+                  'Chiller::GF_chiller'      
+                    ]
+                ],
             ['Impostazioni', ['Vitigni', 'Vini'] ],
             ['&Help', '&About...'], 
              ]
@@ -189,19 +238,39 @@ layout_maturazione_csv = [ [
                         csvLayout('maturazione_'+v, extract=False, header=[m.replace(' ','_') for m in maturazione_dati]),
                         [sg.Submit(), sg.Cancel()]
                       ] for v in vitigni ]
+
+layout_GF_Perdite = [ [sg.Text('Perdite del circuito da 1000lt presente in cantina')],
+                      [sg.Text(name, size = (COL_S-2,1)) for name in gf_perdite_dati],
+                      [ sg.InputText(size = (COL_S-2,1),
+                          key='GF_perdite_'+name.replace(' ','_'),
+                          default_text=def_text)
+                          for (def_text, name) in zip(gf_perdite_dati_default, gf_perdite_dati)],
+                        csvLayout('GF_perdite', extract=False, header=[m.replace(' ','_') for m in gf_perdite_dati]),
+                        [sg.Submit(), sg.Cancel()]
+                        ]
+
 layout_graph = [ 
             [sg.Text('Graph')],
                 [sg.Canvas(size=(HEIGHT, WIDTH//2-100), key='-canvas-')
-                ]
+                ],
+                [sg.Text('Set x axes: '),
+                    sg.Radio('Time','radio', key='-RADIO_GF_TIME_X-',default=True, enable_events=True),
+                    sg.Radio('Bar','radio',key='-RADIO_GF_BAR_X-', enable_events=True),
+                    sg.Radio('T','radio', key='-RADIO_GF_T_X-', enable_events=True)],
+                [sg.Text('Set y axes: '),
+                    sg.Radio('Bar','radio1',key='-RADIO_GF_BAR_Y-', default=True, enable_events=True),
+                    sg.Radio('T','radio1', key='-RADIO_GF_T_Y-', enable_events=True)]
                 ]
 
 
 # ----------- Create actual layout using Columns and a row of Buttons
-layout = [[sg.Menu(menu_def, tearoff=True)],
-            [*[ sg.Column(mat_csv, visible=False, key='-maturazione_'+v+'-') for (mat_csv, v) in zip(layout_maturazione_csv, vitigni)],
-            sg.Column(layout_graph, key='-col2-'),
+layout = [
+           [sg.Menu(menu_def, tearoff=True)],
+            [sg.Column(layout_graph, key='-col2-'),
             sg.VSeperator(),
-            ]
+            *[ sg.Column(mat_csv, visible=False, key='-maturazione_'+v+'-') for (mat_csv, v) in zip(layout_maturazione_csv, vitigni)],
+                sg.Column(layout_GF_Perdite, visible=False, key='-GF_perdite-')
+                ]
            ]
 print(layout)
 
@@ -215,6 +284,8 @@ fig_agg = draw_figure(canvas, fig)
 
 current_layout = 'none'   # The currently visible layout
 State = 'IDLE'
+x_plot = 'time'
+time_names=['Data','Ora_misura']
 
 while True:
     event, values = window.read()
@@ -223,21 +294,54 @@ while True:
         break
     # if maturazione is selected
     if 'maturazione' in event:
+        time_names=['Data', 'Ora_raccolta']
+        y_plot='Babo'
         if not current_layout == 'none':
             window[f'-{current_layout}-'].update(visible=False)
         current_layout = event.split('::')[1]
         window[f'-{current_layout}-'].update(visible=True)
-        updateGraphTable(current_layout,'Data','Babo')
+        updateGraphTable(current_layout,x_plot, y_plot, time_names)
+    
+    if 'GF' in event:
+        if 'RADIO' in event:
+            time_names=[]
+            if 'BAR_X' in event:
+                x_plot = 'Bar_accumolo'
+            if 'TIME_X' in event:
+                x_plot = 'time'
+                time_names=['Data','Ora_misura']
+            if 'T_X' in event:
+                x_plot = 'T_accumolo'
+            if 'BAR_Y' in event:
+                y_plot = 'Bar_accumolo'
+            if 'T_Y' in event:
+                y_plot = 'T_accumolo'
+            updateGraphTable(current_layout,x_plot, y_plot, time_names)
+
+        else:
+            # gruppo frigo
+            if not current_layout == 'none':
+                window[f'-{current_layout}-'].update(visible=False)
+            current_layout = event.split('::')[1]
+            window[f'-{current_layout}-'].update(visible=True)
+            updateGraphTable(current_layout,x_plot, y_plot, time_names)
+
 
 
     if 'Submit' in event:
         if 'maturazione' in current_layout:
             maturazioneSaveAndUpdateTable(values, current_layout, current_layout.split('_')[1], maturazione_dati)
-            updateGraphTable(current_layout,'Data','Babo')
+            updateGraphTable(current_layout,'time','Babo',['Data','Ora_raccolta'])
+        if 'GF' in current_layout:
+            SaveAndUpdateTable(values, current_layout,  'GF_perdite', gf_perdite_dati)
+            updateGraphTable(current_layout,x_plot, y_plot, time_names)
+
     if 'Cancel' in event:
-        if 'maturazione' in current_layout:
-            maturazioneDeleteLine(current_layout, values['table_'+current_layout])
-            updateGraphTable(current_layout,'Data','Babo')
+        DeleteLine(current_layout, values['table_'+current_layout])
+        if 'maturazione'  in current_layout:
+            updateGraphTable(current_layout,'time','Babo',['Data','Ora_raccolta'])
+        if 'GF'  in current_layout:
+            updateGraphTable(current_layout,x_plot, y_plot, time_names)
 
         
 
