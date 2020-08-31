@@ -12,6 +12,15 @@ from matplotlib.dates import (YEARLY, DateFormatter,
                               rrulewrapper, RRuleLocator, drange)
 import matplotlib.dates as mdates
 
+days_month = [31,28,31,30,31,30,31,31,30,31,30,31]
+
+def Hour():
+    return datetime.datetime.now().strftime("%H:%M")
+
+def Data():
+    return datetime.datetime.now().strftime("%d/%m/%Y")
+
+
 def fSp(stringa, n):
     l = len(stringa)
     l1=(n-l)//2
@@ -31,9 +40,9 @@ def hourToSec(hour):
 
 class autoLayout:
     def __init__(self, screen_h, screen_w, key_core):
-        self.H = screen_h
-        self.W = screen_w
-        self.key_core
+        self.screen_h = screen_h
+        self.screen_w = screen_w
+        self.key_core = key_core
         self.layout = []
         # menu var
         self.menu = []
@@ -54,7 +63,7 @@ class autoLayout:
         # csv
         self.filename = key_core+'.csv' 
 
-    def layouMenu(self, menu_def):
+    def layoutMenu(self, menu_def):
         self.menu = [sg.Menu(menu_def, tearoff=True)]
         return self.menu
 
@@ -64,16 +73,15 @@ class autoLayout:
         # table header is the list of field to fill in input
         # tbale_header_input_default is the default value of input field
         # table_header_input_size is the length in word of the input field
-
+        self.table_header_input_size = table_header_input_size
         self.table_header = table_header
-        self.csvLayout( extract=False, 
-                  header=[self.headerToPar(m) for m in table_header])
+        self.csvLayout( extract=False)
         self.table = [ [sg.Text(top_text)],
                         [sg.Text(name, 
                                 size = (table_header_input_size,1)
                                 ) for name in table_header],
                         [sg.InputText(size = (table_header_input_size,1),
-                                key = self.headerToKey( name ),
+                                key = 'table_'+self.headerToKey( name ),
                                 default_text= def_text)
                                 for (name,def_text) 
                                 in zip(table_header, table_header_input_default)],
@@ -85,18 +93,16 @@ class autoLayout:
     def layoutGraph(self, top_text, time_names=[], radiox_list=[], radioy_list=[]):
             # top_text is the top text of graph
             self.time_names=time_names
-            self.canvas_key = '-canvas_'+key_core+'-'
-            self.radiox_keys = {}
-            self.radioy_keys = {}
+            self.canvas_key = '-canvas_'+self.key_core+'-'
             self.graph = [ [sg.Text(top_text)],
-                  [sg.Canvas(size=(self.screen_h, self.screen_w/2-100),
+                  [sg.Canvas(size=(self.screen_w/2-self.screen_w//10, self.screen_h),
                       key=self.canvas_key)]
                   ]
 
-            if len(self.radioy_list) != 0:
+            if len(radioy_list) != 0:
                 ly = [sg.Text('Settare asse y: ')]
                 default1=True
-                for y in self.radioy_list:
+                for y in radioy_list:
                     self.radioy_keys[y] = '-RADIO_'+self.key_core+'_'+y.upper()+'_Y-'
                     ly.append( sg.Radio(y,'radioy',
                                         key=self.radioy_keys[y],
@@ -104,10 +110,10 @@ class autoLayout:
                     default1=False
                 self.graph.append(ly)
 
-            if len(self.radiox_list) != 0:
+            if len(radiox_list) != 0:
                 lx = [sg.Text('Settare asse x: ')]
                 default1=True
-                for x in self.radiox_list:
+                for x in radiox_list:
                     self.radiox_keys[x] = '-RADIO_'+self.key_core+'_'+x.upper()+'_X-'
                     lx.append( sg.Radio(x,'radiox',
                                         key=self.radiox_keys[x],
@@ -143,12 +149,12 @@ class autoLayout:
         return self.layout
 
     def openWindow(self, name, on_top):
-        window = sg.Window(name, self.layout, 
-                            finalize=True, i
+        self.window = sg.Window(name, self.layout, 
+                            finalize=True, 
                             size=(self.screen_w, self.screen_h),
                             location=(0,0),
                             keep_on_top=on_top)
-        window.Finalize()
+        self.window.Finalize()
 
     ##### Routine ##################################################
     def routine(self, event, values):
@@ -156,6 +162,8 @@ class autoLayout:
             self.saveAndUpdateTable(values)
         elif 'Cancel' in event:
             self.deleteLine()
+            self.csvData()
+            self.uploadTable()
         for ev in self.radiox_keys:
             if self.readiox_keys[ev] in event:
                 self.x_plot = ev
@@ -168,8 +176,10 @@ class autoLayout:
         self.updateGraph()
 
 
-                
-     
+    def read(self):
+        return self.window.read()
+    def close(self):
+        return self.window.close()
 
     ##### TABLE function #################################################
     def csvLayout(self,  extract=True):
@@ -185,7 +195,8 @@ class autoLayout:
 
 
             self.table_obj = [sg.Table(values=self.data,
-                  headings=[ fSp(f,COL_S) for f in self.table_header],
+                  headings=[ fSp(f,self.table_header_input_size) 
+                      for f in self.table_header],
                   max_col_width=lenmax+10,
                   display_row_numbers=False,
                   auto_size_columns=True,
@@ -194,10 +205,10 @@ class autoLayout:
                   background_color= sg.BLUES[2],
                   text_color=sg.YELLOWS[1],
                   alternating_row_color=sg.BLUES[1],
-                  num_rows=min(20, len(data)),
-                  key='table_'+self.core_key)]
+                  num_rows=min(20, len(self.data)),
+                  key='table_'+self.key_core)]
     
-    def csvData():
+    def csvData(self):
         if os.path.isfile(self.filename):
             df = pd.read_csv(self.filename, sep=';', engine='python', header=None)
             self.data = df.values.tolist()
@@ -217,8 +228,8 @@ class autoLayout:
             line = ''
             line_v=[]
             # creo la linea da aggiungere
-            for val in [self.headerToPar(h) for h in self.table_header]:
-                    line_v.append(str(values[val]))
+            for val in [self.headerToKey(h) for h in self.table_header]:
+                    line_v.append(str(values['table_'+val]))
             line = ';'.join(line_v)+'\n'
 
             # Nel caso in cui il file non esista lo creo ed aggiungo l'intestazione
@@ -235,7 +246,7 @@ class autoLayout:
             self.uploadTable()
     
     def uploadTable(self):
-            window.Element('table_'+self.key_core).Update(
+            self.window.Element('table_'+elf.key_core).Update(
                     values= self.data, num_rows=min(len(self.data),20))
 
     def deleteLine(self, table_line):
